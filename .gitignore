@@ -1,0 +1,305 @@
+# 手語辨識專案 .gitignore
+
+# ====================
+# 數據資料夾 (主要排除項目)
+# ====================
+dataset/
+data/
+datasets/
+*.csv
+*.xlsx
+*.xls
+
+# ====================
+# 模型和訓練結果
+# ====================
+models/
+checkpoints/
+logs/
+runs/
+outputs/
+results/
+*.pth
+*.pt
+*.ckpt
+*.model
+*.pkl
+*.joblib
+
+# ====================
+# Python 相關
+# ====================
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# PEP 582
+__pypackages__/
+
+# Celery stuff
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# ====================
+# 機器學習和深度學習相關
+# ====================
+# TensorBoard logs
+tensorboard_logs/
+tb_logs/
+
+# MLflow
+mlruns/
+
+# Weights & Biases
+wandb/
+
+# PyTorch
+lightning_logs/
+
+# ====================
+# IDE 和編輯器
+# ====================
+# Visual Studio Code
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# PyCharm
+.idea/
+
+# Sublime Text
+*.sublime-workspace
+*.sublime-project
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# ====================
+# 作業系統相關
+# ====================
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ====================
+# 臨時文件和快取
+# ====================
+# 臨時文件
+tmp/
+temp/
+*.tmp
+*.temp
+*.log
+*.bak
+*.backup
+*.swp
+*.swo
+
+# 壓縮文件 (通常很大，不適合git)
+*.zip
+*.rar
+*.7z
+*.tar
+*.tar.gz
+*.tar.bz2
+
+# ====================
+# 敏感信息
+# ====================
+# 配置文件可能包含敏感信息
+config.ini
+config.yaml
+config.json
+.env.local
+.env.production
+secrets.json
+api_keys.txt
+
+# SSH keys
+*.pem
+*.key
+id_rsa
+id_dsa
+
+# ====================
+# 專案特定排除
+# ====================
+# 快速測試文件
+quick_test.py
+test_*.py
+debug_*.py
+
+# 實驗性代碼
+experiments/
+sandbox/
+playground/
+
+# 文檔生成
+docs/_build/
+docs/build/
+
+# 本地配置
+local_config.py
+local_settings.py
+
+# 輸出圖片和視頻
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.mp4
+*.avi
+*.mov
+!readme_images/  # 保留readme用的圖片
+
+# ====================
+# 註釋說明
+# ====================
+# 如果需要追蹤特定的小型數據樣本，可以使用：
+# !dataset/sample_data/
+# !dataset/small_dataset.csv
+
+# 如果需要追蹤模型配置但不追蹤權重：
+# !models/config/
+# models/*.pth
+
+# 如果需要保留一些重要的日誌模板：
+# !logs/log_template.txt
