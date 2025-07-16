@@ -60,6 +60,36 @@ def run_testing():
         print(f"❌ 模型測試失敗: {e}")
         return False
 
+def check_conda_environment():
+    """檢查conda環境是否正確設置"""
+    import sys
+    import subprocess
+    
+    # 檢查是否在conda環境中
+    if 'CONDA_DEFAULT_ENV' not in os.environ:
+        print("❌ 未檢測到conda環境")
+        print("請先執行以下命令：")
+        print("1. conda init  (如果是第一次使用)")
+        print("2. 重啟PowerShell")
+        print("3. conda tos accept --all  (接受服務條款)")
+        print("4. conda create -n sign_language python=3.9 -y")
+        print("5. conda activate sign_language")
+        return False
+    
+    env_name = os.environ.get('CONDA_DEFAULT_ENV', 'unknown')
+    if env_name != 'sign_language':
+        print(f"❌ 當前環境: {env_name}，需要切換到sign_language環境")
+        print("請執行: conda activate sign_language")
+        return False
+    
+    print(f"✅ 當前conda環境: {env_name}")
+    
+    # 檢查Python版本
+    python_version = sys.version
+    print(f"✅ Python版本: {python_version.split()[0]}")
+    
+    return True
+
 def check_requirements():
     """檢查必要的套件是否已安裝"""
     required_packages = [
@@ -79,7 +109,9 @@ def check_requirements():
         for package in missing_packages:
             print(f"   - {package}")
         print("\n請先安裝缺少的套件:")
-        print("pip install torch pandas numpy scikit-learn matplotlib seaborn joblib")
+        print("conda install pytorch torchvision torchaudio pytorch-cuda=11.7 -c pytorch -c nvidia -y")
+        print("conda install numpy pandas matplotlib seaborn jupyter scikit-learn -y")
+        print("pip install joblib")
         return False
     
     print("✅ 所有必要套件都已安裝")
@@ -119,6 +151,9 @@ def main():
     # 環境檢查
     print("\n🔍 環境檢查...")
     env_ok = True
+    
+    if not check_conda_environment():
+        env_ok = False
     
     if not check_requirements():
         env_ok = False

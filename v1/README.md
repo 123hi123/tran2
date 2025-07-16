@@ -35,16 +35,40 @@
 - **儲存**: 至少2GB可用空間
 
 ### 軟體環境
+
+#### 第一步：初始化conda並接受服務條款
+```bash
+# 如果是第一次使用conda，需要初始化
+conda init
+
+# 重啟PowerShell後，接受conda服務條款
+conda config --set channel_priority strict
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/msys2
+
+# 或者簡單地接受所有預設頻道的條款
+conda tos accept --all
+```
+
+#### 第二步：建立Python環境
 ```bash
 # 建立Python 3.9環境
 conda create -n sign_language python=3.9 -y
-conda activate sign_language
 
-# 安裝PyTorch (CUDA 11.4)
+# 啟用環境
+conda activate sign_language
+```
+
+#### 第三步：安裝深度學習套件
+```bash
+# 安裝PyTorch (適用於CUDA 11.4)
 conda install pytorch torchvision torchaudio pytorch-cuda=11.7 -c pytorch -c nvidia -y
 
-# 安裝其他套件
+# 安裝基礎科學計算套件
 conda install numpy pandas matplotlib seaborn jupyter scikit-learn -y
+
+# 安裝其他必要套件
 pip install joblib
 ```
 
@@ -135,22 +159,38 @@ python test_model_v1.py
 
 ### 常見問題
 
-1. **CUDA記憶體不足**
+1. **Conda環境問題**
+   ```bash
+   # 錯誤：CondaError: Run 'conda init' before 'conda activate'
+   # 解決方案：
+   conda init
+   # 重啟PowerShell後再試
+   
+   # 錯誤：Terms of Service have not been accepted
+   # 解決方案：
+   conda tos accept --all
+   
+   # 錯誤：conda activate不起作用
+   # 解決方案：確保重啟PowerShell並檢查conda配置
+   conda info --envs
+   ```
+
+2. **CUDA記憶體不足**
    ```
    解決方案：減少batch_size到8或4
    ```
 
-2. **找不到CSV文件**
+3. **找不到CSV文件**
    ```
    確認dataset資料夾存在且包含sign*.csv文件
    ```
 
-3. **套件缺失**
+4. **套件缺失**
    ```bash
    pip install torch pandas numpy scikit-learn matplotlib seaborn joblib
    ```
 
-4. **測試資料集為空**
+5. **測試資料集為空**
    ```
    檢查是否有足夠的資料進行訓練/測試分割
    某些類別可能資料量太少，全部用於訓練

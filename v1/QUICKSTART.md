@@ -1,6 +1,36 @@
 # 手語辨識系統 v1 - 快速開始指南
 
-## 🚀 快速開始
+## � 環境準備
+
+### 1. 初始化conda（如果是第一次使用）
+```bash
+# 初始化conda
+conda init
+
+# 重啟PowerShell後，接受服務條款
+conda tos accept --all
+
+# 或分別接受各頻道條款
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/msys2
+```
+
+### 2. 建立環境
+```bash
+# 建立Python 3.9環境
+conda create -n sign_language python=3.9 -y
+
+# 啟用環境
+conda activate sign_language
+
+# 安裝必要套件
+conda install pytorch torchvision torchaudio pytorch-cuda=11.7 -c pytorch -c nvidia -y
+conda install numpy pandas matplotlib seaborn jupyter scikit-learn -y
+pip install joblib
+```
+
+## �🚀 快速開始
 
 ### 1. 環境檢查
 ```bash
@@ -58,6 +88,19 @@ TRAINING_CONFIG = {
 ```
 
 ## 🔧 故障排除
+
+### Conda環境問題（常見）
+```bash
+# 問題：CondaError: Run 'conda init' before 'conda activate'
+conda init
+# 重啟PowerShell後再試
+
+# 問題：Terms of Service have not been accepted
+conda tos accept --all
+
+# 問題：conda activate不起作用
+# 確保重啟PowerShell並重新嘗試
+```
 
 ### GPU記憶體不足
 ```python
