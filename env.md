@@ -121,3 +121,7 @@ Get-Content ".\dataset\sign_language1.csv" -Head 5
 ├── logs/            # 訓練日誌
 └── requirements.txt  # 套件需求列表
 ```
+
+
+
+git clone https://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@github.com/123hi123/tran2.git
