@@ -144,12 +144,13 @@ class SignLanguageTrainer:
         
         print(f"開始準備序列資料，目標序列長度: {sequence_length}")
         
-        # 步驟1: 提取特徵欄位 (移除標籤欄位，只保留座標特徵)
+        # 步驟1: 提取特徵欄位 (移除標籤欄位和frame，只保留座標特徵)
         feature_cols = [col for col in data.columns 
-                       if col not in ['sign_language', 'sign_language_encoded']]
+                       if col not in ['sign_language', 'sign_language_encoded', 'frame', 'source_video']]
         
         print(f"特徵欄位數量: {len(feature_cols)}")
-        print(f"特徵欄位包含: frame + 姿態座標 + 左手座標 + 右手座標")
+        print(f"特徵欄位包含: 姿態座標 + 左手座標 + 右手座標 (排除frame)")
+        print(f"排除的欄位: sign_language, sign_language_encoded, frame, source_video")
         
         # 步驟2: 初始化序列容器
         sequences = []  # 儲存所有時序序列
@@ -253,7 +254,9 @@ class SignLanguageTrainer:
             correct = 0
             total = 0
             
-            for batch_X, batch_y in train_loader:
+            print(f"\n🚀 Epoch {epoch+1}/{epochs} 開始...")
+            
+            for batch_idx, (batch_X, batch_y) in enumerate(train_loader):
                 batch_X, batch_y = batch_X.to(self.device), batch_y.to(self.device)
                 
                 # 前向傳播
@@ -270,6 +273,13 @@ class SignLanguageTrainer:
                 _, predicted = torch.max(outputs.data, 1)
                 total += batch_y.size(0)
                 correct += (predicted == batch_y).sum().item()
+                
+                # 每20個batch顯示進度
+                if batch_idx % 20 == 0:
+                    current_accuracy = 100 * correct / total if total > 0 else 0
+                    print(f"  Batch [{batch_idx:3d}/{len(train_loader)}] | "
+                          f"Loss: {loss.item():.4f} | "
+                          f"Acc: {current_accuracy:.1f}%")
             
             # 計算平均損失和準確率
             avg_loss = total_loss / len(train_loader)
@@ -281,12 +291,11 @@ class SignLanguageTrainer:
             # 學習率調整
             scheduler.step(avg_loss)
             
-            # 每10個epoch或最後一個epoch打印結果
-            if (epoch + 1) % 10 == 0 or epoch == epochs - 1:
-                print(f"Epoch [{epoch+1:3d}/{epochs}] | "
-                      f"Loss: {avg_loss:.4f} | "
-                      f"Accuracy: {accuracy:.2f}% | "
-                      f"LR: {optimizer.param_groups[0]['lr']:.6f}")
+            # 每個epoch都顯示進度
+            print(f"Epoch [{epoch+1:3d}/{epochs}] | "
+                  f"Loss: {avg_loss:.4f} | "
+                  f"Accuracy: {accuracy:.2f}% | "
+                  f"LR: {optimizer.param_groups[0]['lr']:.6f}")
         
         print("-" * 70)
         print("訓練完成!")

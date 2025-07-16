@@ -46,9 +46,10 @@ class SignLanguageDataProcessor:
         for i in range(21):
             right_hand_features.extend([f'Right_hand_tag{i}_x', f'Right_hand_tag{i}_y', f'Right_hand_tag{i}_z'])
         
-        # 組合所有特徵欄位（不包含source_video）
+        # 組合所有欄位（frame用於排序，pose/hand座標用於特徵）
         self.feature_columns = ['frame'] + pose_features + left_hand_features + right_hand_features
-        print(f"特徵欄位數量: {len(self.feature_columns)}")
+        print(f"總欄位數量: {len(self.feature_columns)} (包含frame)")
+        print(f"實際特徵維度: {len(pose_features + left_hand_features + right_hand_features)} (不包含frame)")
     
     def load_all_csv_files(self):
         """載入所有以sign開頭的CSV文件"""
@@ -75,6 +76,14 @@ class SignLanguageDataProcessor:
         # 合併所有資料
         combined_data = pd.concat(all_data, ignore_index=True)
         print(f"合併後總資料形狀: {combined_data.shape}")
+        
+        # 🔧 重要修正：按 sign_language 和 frame 排序，確保時間序列正確
+        if 'frame' in combined_data.columns:
+            print("按 sign_language 和 frame 排序資料...")
+            combined_data = combined_data.sort_values(['sign_language', 'frame']).reset_index(drop=True)
+            print("✅ 時間序列排序完成")
+        else:
+            print("⚠️  警告：沒有 frame 欄位，無法保證時間序列順序")
         
         return combined_data
     
