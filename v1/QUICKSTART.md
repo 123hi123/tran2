@@ -38,12 +38,18 @@ cd d:\file\畢業專題\tran2
 python v1/run_pipeline_v1.py --check-only
 ```
 
-### 2. 一鍵執行完整流程
+### 2. GPU狀態檢查（可選）
+```bash
+# 詳細的GPU檢查和性能測試
+python v1/gpu_check.py
+```
+
+### 3. 一鍵執行完整流程
 ```bash
 python v1/run_pipeline_v1.py --step all
 ```
 
-### 3. 分步執行（推薦用於調試）
+### 4. 分步執行（推薦用於調試）
 ```bash
 # 步驟1：資料預處理
 python v1/run_pipeline_v1.py --step preprocess

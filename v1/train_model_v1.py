@@ -97,43 +97,116 @@ class SignLanguageTrainer:
         
         return train_data
     
+    def analyze_sequence_lengths(self, data):
+        """分析各類別的序列長度分布"""
+        print("\n📊 序列長度分析:")
+        print("-" * 50)
+        
+        length_stats = {}
+        for sign_language in data['sign_language'].unique():
+            class_data = data[data['sign_language'] == sign_language]
+            length = len(class_data)
+            length_stats[sign_language] = length
+            
+            print(f"{sign_language:<15}: {length:>3} 幀")
+        
+        # 統計摘要
+        lengths = list(length_stats.values())
+        print("-" * 50)
+        print(f"{'平均長度':<15}: {np.mean(lengths):>6.1f} 幀")
+        print(f"{'最短動作':<15}: {np.min(lengths):>6} 幀")
+        print(f"{'最長動作':<15}: {np.max(lengths):>6} 幀")
+        print(f"{'標準差':<15}: {np.std(lengths):>6.1f} 幀")
+        
+        # 建議最佳sequence_length
+        recommended_length = int(np.percentile(lengths, 70))  # 70%分位數
+        print(f"{'建議序列長度':<15}: {recommended_length:>6} 幀 (覆蓋70%動作)")
+        print("-" * 50)
+        
+        return length_stats, recommended_length
+
     def prepare_sequences(self, data, sequence_length=30):
-        """準備序列資料"""
-        # 特徵欄位（排除標籤相關欄位）
+        """
+        準備序列資料 - 將CSV表格轉換為GRU模型所需的時序序列格式
+        
+        目標: 
+        - 輸入: CSV表格 (每行=一幀, 包含163維特徵)
+        - 輸出: 3D張量 (樣本數, 時間步, 特徵維度)
+        
+        Args:
+            data: 預處理後的訓練資料 (DataFrame)
+            sequence_length: 每個序列的時間步數 (預設30幀)
+            
+        Returns:
+            sequences: 形狀為 (樣本數, sequence_length, 特徵維度) 的3D張量
+            labels: 形狀為 (樣本數,) 的標籤陣列
+        """
+        
+        print(f"開始準備序列資料，目標序列長度: {sequence_length}")
+        
+        # 步驟1: 提取特徵欄位 (移除標籤欄位，只保留座標特徵)
         feature_cols = [col for col in data.columns 
                        if col not in ['sign_language', 'sign_language_encoded']]
         
-        # 按類別和影片分組創建序列
-        sequences = []
-        labels = []
+        print(f"特徵欄位數量: {len(feature_cols)}")
+        print(f"特徵欄位包含: frame + 姿態座標 + 左手座標 + 右手座標")
         
-        # 按sign_language分組
-        for sign_language in data['sign_language'].unique():
+        # 步驟2: 初始化序列容器
+        sequences = []  # 儲存所有時序序列
+        labels = []     # 儲存對應的標籤
+        
+        # 步驟3: 按手語類別分組處理
+        unique_classes = data['sign_language'].unique()
+        print(f"處理 {len(unique_classes)} 個手語類別: {list(unique_classes)}")
+        
+        for sign_language in unique_classes:
+            # 提取該類別的所有幀資料
             class_data = data[data['sign_language'] == sign_language]
+            num_frames = len(class_data)
             
-            # 如果資料長度超過sequence_length，創建滑動窗口序列
-            if len(class_data) >= sequence_length:
-                for i in range(len(class_data) - sequence_length + 1):
+            print(f"\n處理類別 '{sign_language}': {num_frames} 幀")
+            
+            # 情況A: 資料充足，使用滑動窗口創建多個序列
+            if num_frames >= sequence_length:
+                num_sequences = num_frames - sequence_length + 1
+                print(f"  → 使用滑動窗口創建 {num_sequences} 個序列")
+                
+                for i in range(num_sequences):
+                    # 提取連續的sequence_length幀作為一個序列
                     seq = class_data.iloc[i:i+sequence_length][feature_cols].values
                     sequences.append(seq)
                     labels.append(class_data.iloc[i]['sign_language_encoded'])
+                    
+            # 情況B: 資料不足，使用填充策略
             else:
-                # 如果資料不足，進行填充或重複
+                print(f"  → 資料不足，進行填充 ({num_frames} → {sequence_length} 幀)")
+                
                 seq_data = class_data[feature_cols].values
+                
                 if len(seq_data) < sequence_length:
-                    # 重複最後一幀來填充
+                    # 計算需要填充的幀數
                     padding_needed = sequence_length - len(seq_data)
+                    
+                    # 使用最後一幀重複填充
                     last_frame = seq_data[-1:] if len(seq_data) > 0 else np.zeros((1, len(feature_cols)))
                     padding = np.repeat(last_frame, padding_needed, axis=0)
                     seq_data = np.vstack([seq_data, padding])
+                    
+                    print(f"  → 重複最後一幀 {padding_needed} 次進行填充")
                 
                 sequences.append(seq_data)
                 labels.append(class_data.iloc[0]['sign_language_encoded'])
         
+        # 步驟4: 轉換為NumPy陣列
         sequences = np.array(sequences, dtype=np.float32)
         labels = np.array(labels, dtype=np.int64)
         
+        # 步驟5: 顯示最終結果
+        print(f"\n✅ 序列準備完成!")
         print(f"序列形狀: {sequences.shape}")
+        print(f"  - 訓練樣本數: {sequences.shape[0]}")
+        print(f"  - 序列長度(時間步): {sequences.shape[1]}")
+        print(f"  - 特徵維度: {sequences.shape[2]}")
         print(f"標籤形狀: {labels.shape}")
         
         return sequences, labels
@@ -303,27 +376,35 @@ class SignLanguageTrainer:
         print("\n步驟 1: 載入資料...")
         train_data = self.load_data()
         
-        # 3. 準備序列資料
-        print("\n步驟 2: 準備序列資料...")
+        # 3. 分析序列長度分布
+        print("\n步驟 2a: 分析序列長度分布...")
+        length_stats, recommended_length = self.analyze_sequence_lengths(train_data)
+        
+        # 根據分析結果調整sequence_length（可選）
+        if sequence_length == 20:  # 如果使用預設值，考慮使用建議值
+            print(f"\n💡 建議使用序列長度: {recommended_length} (當前使用: {sequence_length})")
+        
+        # 4. 準備序列資料
+        print("\n步驟 2b: 準備序列資料...")
         X_train, y_train = self.prepare_sequences(train_data, sequence_length)
         
-        # 4. 創建模型
+        # 5. 創建模型
         print("\n步驟 3: 創建模型...")
         input_size = X_train.shape[2]  # 特徵維度
         num_classes = len(self.label_encoder.classes_)
         self.create_model(input_size, num_classes)
         
-        # 5. 訓練模型
+        # 6. 訓練模型
         print("\n步驟 4: 訓練模型...")
         train_losses, train_accuracies = self.train_model(
             X_train, y_train, epochs, batch_size, learning_rate
         )
         
-        # 6. 儲存模型
+        # 7. 儲存模型
         print("\n步驟 5: 儲存模型...")
         model_path = self.save_model(train_losses, train_accuracies)
         
-        # 7. 繪製訓練曲線
+        # 8. 繪製訓練曲線
         print("\n步驟 6: 繪製訓練曲線...")
         self.plot_training_curves(train_losses, train_accuracies)
         

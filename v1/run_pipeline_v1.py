@@ -60,6 +60,25 @@ def run_testing():
         print(f"❌ 模型測試失敗: {e}")
         return False
 
+def check_gpu_status():
+    """檢查GPU狀態"""
+    try:
+        import torch
+        cuda_available = torch.cuda.is_available()
+        
+        if cuda_available:
+            gpu_name = torch.cuda.get_device_name(0)
+            total_memory = torch.cuda.get_device_properties(0).total_memory / 1024**3
+            print(f"✅ GPU可用: {gpu_name} ({total_memory:.1f}GB)")
+            return True
+        else:
+            print("❌ GPU不可用，將使用CPU (訓練速度會較慢)")
+            print("💡 建議檢查CUDA和PyTorch安裝")
+            return False
+    except ImportError:
+        print("❌ PyTorch未安裝")
+        return False
+
 def check_conda_environment():
     """檢查conda環境是否正確設置"""
     import sys
@@ -153,6 +172,9 @@ def main():
     env_ok = True
     
     if not check_conda_environment():
+        env_ok = False
+    
+    if not check_gpu_status():
         env_ok = False
     
     if not check_requirements():
