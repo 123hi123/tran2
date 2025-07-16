@@ -13,7 +13,8 @@ datasets/
 # ====================
 # 模型和訓練結果
 # ====================
-models/
+# 排除訓練好的模型權重檔案，但保留模型定義代碼
+# models/  # 註解掉，允許 src/models/ 資料夾中的 .py 檔案
 checkpoints/
 logs/
 runs/
@@ -25,6 +26,11 @@ results/
 *.model
 *.pkl
 *.joblib
+
+# 只排除特定的模型權重資料夾
+saved_models/
+trained_models/
+model_weights/
 
 # ====================
 # Python 相關
@@ -262,10 +268,15 @@ id_dsa
 # ====================
 # 專案特定排除
 # ====================
-# 快速測試文件
-quick_test.py
-test_*.py
-debug_*.py
+# 快速測試文件 (註解掉，允許正式的測試文件)
+# quick_test.py
+# test_*.py  # 註解掉，允許 test/ 資料夾中的測試文件
+# debug_*.py  # 註解掉，允許調試文件
+
+# 只排除臨時的快速測試文件
+quick_*.py
+temp_*.py
+scratch_*.py
 
 # 實驗性代碼
 experiments/
