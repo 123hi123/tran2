@@ -142,22 +142,34 @@ def test_data_loading():
     print("=" * 50)
     
     try:
-        # 嘗試載入實際數據
-        from src.data_preprocessing import DataPreprocessor
+        # 嘗試載入實際數據 - 使用 v1 版本
+        import sys
+        sys.path.append('v1')
+        from data_preprocessing_v1 import SignLanguageDataProcessor
         
         print("初始化數據預處理器...")
-        preprocessor = DataPreprocessor()
+        processor = SignLanguageDataProcessor()
         
-        print("載入數據...")
+        print("載入CSV文件...")
         start_time = time.time()
-        X, y = preprocessor.load_and_preprocess()
+        
+        # 運行預處理步驟
+        processor.setup_directories()
+        processor.define_feature_columns()
+        grouped_data = processor.load_all_csv_files()
+        
         end_time = time.time()
         
         print(f"✅ 數據載入成功")
-        print(f"   X形狀: {X.shape}")
-        print(f"   y形狀: {y.shape}")
+        print(f"   發現類別數: {len(grouped_data)}")
         print(f"   載入時間: {end_time - start_time:.2f} 秒")
-        print(f"   類別數: {len(np.unique(y))}")
+        
+        # 顯示類別統計
+        for label, data in list(grouped_data.items())[:5]:  # 只顯示前5個
+            print(f"   類別 '{label}': {len(data)} 樣本")
+        
+        if len(grouped_data) > 5:
+            print(f"   ... 還有 {len(grouped_data) - 5} 個類別")
         
         return True
         
