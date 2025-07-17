@@ -271,34 +271,89 @@ class SignLanguageTester:
         return report
     
     def plot_confusion_matrix(self, y_true, y_pred):
-        """繪製混淆矩陣"""
-        class_names = self.label_encoder.classes_
-        cm = confusion_matrix(y_true, y_pred)
+        """繪製混淆矩陣（記憶體優化版本）"""
+        print("正在生成混淆矩陣...")
         
-        plt.figure(figsize=(12, 10))
-        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
-                    xticklabels=class_names, yticklabels=class_names)
-        plt.title('混淆矩陣 (Confusion Matrix)')
-        plt.xlabel('預測類別')
-        plt.ylabel('真實類別')
-        plt.xticks(rotation=45)
-        plt.yticks(rotation=0)
+        class_names = self.label_encoder.classes_
+        num_classes = len(class_names)
+        
+        # 記憶體優化：限制樣本數量進行可視化
+        max_samples_for_plot = 50000  # 最多使用5萬個樣本繪圖
+        if len(y_true) > max_samples_for_plot:
+            print(f"⚠️  樣本數 ({len(y_true)}) 超過限制 ({max_samples_for_plot})，隨機採樣進行可視化...")
+            indices = np.random.choice(len(y_true), max_samples_for_plot, replace=False)
+            y_true_plot = np.array(y_true)[indices]
+            y_pred_plot = np.array(y_pred)[indices]
+            print(f"使用 {len(y_true_plot)} 個樣本進行可視化")
+        else:
+            y_true_plot = y_true
+            y_pred_plot = y_pred
+        
+        # 計算混淆矩陣
+        cm = confusion_matrix(y_true_plot, y_pred_plot)
+        
+        # 記憶體優化：調整圖形大小和DPI
+        fig_size = min(8 + num_classes * 0.3, 15)  # 動態調整大小，最大15
+        dpi = 150 if num_classes > 10 else 200     # 類別多時降低DPI
+        
+        plt.figure(figsize=(fig_size, fig_size))
+        
+        # 記憶體優化：簡化標註
+        if num_classes > 20:
+            # 類別太多時不顯示數字標註
+            sns.heatmap(cm, cmap='Blues', 
+                       xticklabels=class_names, yticklabels=class_names,
+                       annot=False, fmt='d')
+            print("類別數過多，混淆矩陣不顯示數字標註")
+        else:
+            # 正常顯示
+            sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+                       xticklabels=class_names, yticklabels=class_names)
+        
+        plt.title('混淆矩陣 (Confusion Matrix)', fontsize=12)
+        plt.xlabel('預測類別', fontsize=10)
+        plt.ylabel('真實類別', fontsize=10)
+        
+        # 記憶體優化：標籤旋轉和字體大小
+        if num_classes > 10:
+            plt.xticks(rotation=90, fontsize=8)
+            plt.yticks(rotation=0, fontsize=8)
+        else:
+            plt.xticks(rotation=45, fontsize=9)
+            plt.yticks(rotation=0, fontsize=9)
+            
         plt.tight_layout()
         
-        # 儲存圖表
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        plot_path = os.path.join(self.results_folder, f"confusion_matrix_{timestamp}.png")
-        plt.savefig(plot_path, dpi=300, bbox_inches='tight')
-        print(f"混淆矩陣已儲存: {plot_path}")
+        # 記憶體優化：保存時降低DPI
+        try:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            plot_path = os.path.join(self.results_folder, f"confusion_matrix_{timestamp}.png")
+            plt.savefig(plot_path, dpi=dpi, bbox_inches='tight')
+            print(f"混淆矩陣已儲存: {plot_path}")
+            
+            # 記憶體清理：不顯示圖形，直接關閉
+            plt.close()
+            print("圖形已關閉以釋放記憶體")
+            
+        except Exception as e:
+            print(f"⚠️  保存混淆矩陣時發生錯誤: {e}")
+            plt.close()
         
-        plt.show()
+        # 計算完整混淆矩陣（使用所有數據）
+        if len(y_true) != len(y_true_plot):
+            print("計算完整混淆矩陣...")
+            cm_full = confusion_matrix(y_true, y_pred)
+            return cm_full
         
         return cm
     
     def plot_class_performance(self, report):
-        """繪製各類別性能圖表"""
+        """繪製各類別性能圖表（記憶體優化版本）"""
+        print("正在生成類別性能圖表...")
+        
         class_names = self.label_encoder.classes_
         metrics = ['precision', 'recall', 'f1-score']
+        num_classes = len(class_names)
         
         # 準備資料
         performance_data = []
@@ -311,26 +366,64 @@ class SignLanguageTester:
                         'Score': report[class_name][metric]
                     })
         
+        if not performance_data:
+            print("⚠️  沒有可繪製的性能數據")
+            return
+        
         df_performance = pd.DataFrame(performance_data)
         
-        # 繪製圖表
-        plt.figure(figsize=(15, 8))
-        sns.barplot(data=df_performance, x='Class', y='Score', hue='Metric')
-        plt.title('各類別性能指標')
-        plt.xlabel('手語類別')
-        plt.ylabel('分數')
-        plt.xticks(rotation=45)
-        plt.legend(title='指標')
-        plt.grid(axis='y', alpha=0.3)
-        plt.tight_layout()
+        # 記憶體優化：動態調整圖表大小
+        if num_classes > 20:
+            fig_width = 20
+            fig_height = 8
+            font_size = 6
+            rotation = 90
+        elif num_classes > 10:
+            fig_width = 15
+            fig_height = 8
+            font_size = 8
+            rotation = 45
+        else:
+            fig_width = 12
+            fig_height = 6
+            font_size = 10
+            rotation = 45
         
-        # 儲存圖表
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        plot_path = os.path.join(self.results_folder, f"class_performance_{timestamp}.png")
-        plt.savefig(plot_path, dpi=300, bbox_inches='tight')
-        print(f"類別性能圖表已儲存: {plot_path}")
-        
-        plt.show()
+        try:
+            plt.figure(figsize=(fig_width, fig_height))
+            
+            # 繪製圖表
+            ax = sns.barplot(data=df_performance, x='Class', y='Score', hue='Metric')
+            plt.title('各類別性能指標', fontsize=12)
+            plt.xlabel('手語類別', fontsize=10)
+            plt.ylabel('分數', fontsize=10)
+            plt.xticks(rotation=rotation, fontsize=font_size)
+            plt.yticks(fontsize=font_size)
+            plt.legend(fontsize=font_size)
+            
+            # 添加數值標籤（類別少時）
+            if num_classes <= 10:
+                for container in ax.containers:
+                    ax.bar_label(container, fmt='%.2f', fontsize=6)
+            
+            plt.tight_layout()
+            
+            # 保存圖表
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            plot_path = os.path.join(self.results_folder, f"class_performance_{timestamp}.png")
+            
+            # 記憶體優化：降低DPI
+            dpi = 150 if num_classes > 15 else 200
+            plt.savefig(plot_path, dpi=dpi, bbox_inches='tight')
+            print(f"類別性能圖已儲存: {plot_path}")
+            
+            # 記憶體清理
+            plt.close()
+            print("圖形已關閉以釋放記憶體")
+            
+        except Exception as e:
+            print(f"⚠️  繪製類別性能圖時發生錯誤: {e}")
+            plt.close()
     
     def save_results(self, y_true, y_pred, y_prob, class_names, report):
         """儲存詳細測試結果"""
