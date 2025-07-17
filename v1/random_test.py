@@ -1,5 +1,5 @@
 """
-隨機動作測試器
+隨機動作測試器 - 基於真實測試腳本邏輯
 隨機選擇一個手語動作，測試模型是否能正確預測
 """
 
@@ -54,7 +54,7 @@ class SignLanguageGRU(nn.Module):
         return out
 
 class RandomActionTester:
-    def __init__(self, data_folder="v1/processed_data", model_folder="v1/models"):
+    def __init__(self, data_folder="processed_data", model_folder="models"):
         self.data_folder = data_folder
         self.model_folder = model_folder
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -100,7 +100,7 @@ class RandomActionTester:
         return checkpoint
     
     def load_test_data(self):
-        """載入測試資料"""
+        """載入測試資料 - 與測試腳本完全相同"""
         test_path = os.path.join(self.data_folder, "test_dataset.csv")
         
         if not os.path.exists(test_path):
@@ -109,13 +109,16 @@ class RandomActionTester:
         test_data = pd.read_csv(test_path)
         print(f"📁 載入測試資料: {test_data.shape}")
         
-        # 處理缺失值（與訓練時保持一致）
+        if len(test_data) == 0:
+            raise ValueError("測試資料集為空")
+        
+        # 處理缺失值（與測試腳本保持一致）
         self._preprocess_test_data(test_data)
         
         return test_data
     
     def _preprocess_test_data(self, data):
-        """預處理測試數據，確保與訓練時一致"""
+        """預處理測試數據，與測試腳本完全相同"""
         total_missing = data.isnull().sum().sum()
         if total_missing > 0:
             print(f"⚠️  測試數據發現 {total_missing} 個缺失值，進行處理...")
@@ -136,67 +139,63 @@ class RandomActionTester:
                 print("✅ 智能缺失值處理完成")
                 
             except ImportError:
-                print("⚠️  使用基本缺失值處理...")
-                # 基本的線性插值
-                numeric_columns = data.select_dtypes(include=[np.number]).columns
-                for col in numeric_columns:
-                    if data[col].isnull().any():
-                        data[col] = data[col].interpolate(method='linear').fillna(method='bfill').fillna(method='ffill')
+                print("⚠️  使用基礎缺失值處理...")
+                # 基礎處理：填充 0
+                data.fillna(0, inplace=True)
+        else:
+            print("✅ 測試數據沒有缺失值")
     
-    def get_random_action_sequence(self, test_data, sequence_length=20):
-        """隨機選擇一個動作的一個序列"""
-        # 獲取所有可用的類別
-        available_classes = test_data['sign_language'].unique()
+    def prepare_all_test_sequences(self, data, sequence_length=20):
+        """準備所有測試序列 - 與測試腳本邏輯完全相同"""
+        # 特徵欄位（排除標籤相關欄位和frame，與訓練時保持一致）
+        feature_cols = [col for col in data.columns 
+                       if col not in ['sign_language', 'sign_language_encoded', 'frame', 'source_video']]
         
-        # 隨機選擇一個類別
-        random_class = random.choice(available_classes)
-        print(f"🎲 隨機選擇的類別: {random_class}")
+        print(f"測試特徵維度: {len(feature_cols)} (排除: sign_language, sign_language_encoded, frame, source_video)")
         
-        # 獲取該類別的所有數據
-        class_data = test_data[test_data['sign_language'] == random_class].copy()
+        # 按類別分組創建序列
+        sequences = []
+        labels = []
+        class_names = []
+        sequence_info = []  # 添加序列信息追蹤
         
-        # 按source_video分組
-        videos = class_data['source_video'].unique()
-        random_video = random.choice(videos)
-        print(f"📹 隨機選擇的視頻: {random_video}")
+        # 按sign_language分組
+        for sign_language in data['sign_language'].unique():
+            class_data = data[data['sign_language'] == sign_language]
+            
+            # 如果資料長度超過sequence_length，創建滑動窗口序列
+            if len(class_data) >= sequence_length:
+                for i in range(len(class_data) - sequence_length + 1):
+                    seq = class_data.iloc[i:i+sequence_length][feature_cols].values
+                    sequences.append(seq)
+                    labels.append(class_data.iloc[i]['sign_language_encoded'])
+                    class_names.append(sign_language)
+                    # 添加序列來源信息
+                    start_frame = i + 1
+                    end_frame = i + sequence_length
+                    sequence_info.append(f"{sign_language}_seq_{start_frame}-{end_frame}")
+            else:
+                # 如果資料不足，進行填充
+                seq_data = class_data[feature_cols].values
+                if len(seq_data) < sequence_length:
+                    # 重複最後一幀來填充
+                    padding_needed = sequence_length - len(seq_data)
+                    last_frame = seq_data[-1:] if len(seq_data) > 0 else np.zeros((1, len(feature_cols)))
+                    padding = np.repeat(last_frame, padding_needed, axis=0)
+                    seq_data = np.vstack([seq_data, padding])
+                
+                sequences.append(seq_data)
+                labels.append(class_data.iloc[0]['sign_language_encoded'])
+                class_names.append(sign_language)
+                sequence_info.append(f"{sign_language}_padded")
         
-        # 獲取該視頻的數據
-        video_data = class_data[class_data['source_video'] == random_video].copy()
-        video_data = video_data.sort_values('frame')
+        sequences = np.array(sequences, dtype=np.float32)
+        labels = np.array(labels, dtype=np.int64)
         
-        # 特徵欄位（162維，排除frame）
-        pose_columns = [f'pose_{i}' for i in range(36)]
-        left_hand_columns = [f'left_hand_{i}' for i in range(63)]
-        right_hand_columns = [f'right_hand_{i}' for i in range(63)]
-        feature_columns = pose_columns + left_hand_columns + right_hand_columns
+        print(f"測試序列形狀: {sequences.shape}")
+        print(f"測試標籤形狀: {labels.shape}")
         
-        # 檢查可用特徵
-        available_features = [col for col in feature_columns if col in video_data.columns]
-        
-        if len(video_data) < sequence_length:
-            print(f"⚠️  視頻太短 ({len(video_data)} 幀)，需要至少 {sequence_length} 幀")
-            return None, None, None, None
-        
-        # 隨機選擇序列起始位置
-        max_start = len(video_data) - sequence_length
-        random_start = random.randint(0, max_start)
-        random_end = random_start + sequence_length
-        
-        print(f"🎬 選擇序列: 第 {random_start+1} - {random_end} 幀")
-        
-        # 提取序列
-        sequence_data = video_data.iloc[random_start:random_end]
-        features = sequence_data[available_features].values
-        
-        # 檢查序列完整性
-        if np.isnan(features).all():
-            print("⚠️  序列全為缺失值，重新選擇...")
-            return self.get_random_action_sequence(test_data, sequence_length)
-        
-        # 標籤編碼
-        true_label = self.label_encoder.transform([random_class])[0]
-        
-        return features, true_label, random_class, f"{random_video}[{random_start+1}:{random_end}]"
+        return sequences, labels, class_names, sequence_info
     
     def predict_single_sequence(self, sequence):
         """對單個序列進行預測"""
@@ -212,7 +211,7 @@ class RandomActionTester:
         
         return predicted_class, confidence, probabilities[0].cpu().numpy()
     
-    def run_random_test(self, num_tests=1, sequence_length=20):
+    def run_random_test(self, num_tests=5, sequence_length=20):
         """執行隨機測試"""
         print("=" * 70)
         print("🎯 隨機動作預測測試")
@@ -222,20 +221,28 @@ class RandomActionTester:
         self.load_model()
         test_data = self.load_test_data()
         
+        # 準備所有測試序列（使用與測試腳本相同的邏輯）
+        X_test, y_test, class_names, sequence_info = self.prepare_all_test_sequences(test_data, sequence_length)
+        
+        if len(X_test) == 0:
+            print("❌ 沒有可用的測試序列")
+            return
+        
         correct_predictions = 0
         
         for test_num in range(num_tests):
             print(f"\n🔄 測試 {test_num + 1}/{num_tests}")
             print("-" * 50)
             
-            # 獲取隨機序列
-            sequence, true_label, true_class, sequence_info = self.get_random_action_sequence(
-                test_data, sequence_length
-            )
+            # 隨機選擇一個序列
+            random_idx = random.randint(0, len(X_test) - 1)
+            sequence = X_test[random_idx]
+            true_label = y_test[random_idx]
+            true_class = self.label_encoder.classes_[true_label]
+            seq_info = sequence_info[random_idx]
             
-            if sequence is None:
-                print("跳過此次測試...")
-                continue
+            print(f"📍 序列編號: {random_idx}")
+            print(f"📍 序列來源: {seq_info}")
             
             # 預測
             predicted_label, confidence, all_probs = self.predict_single_sequence(sequence)
@@ -247,7 +254,6 @@ class RandomActionTester:
                 correct_predictions += 1
             
             # 顯示結果
-            print(f"📍 序列來源: {sequence_info}")
             print(f"🎯 真實標籤: {true_class}")
             print(f"🤖 預測標籤: {predicted_class}")
             print(f"📊 預測信心: {confidence:.4f} ({confidence*100:.2f}%)")
@@ -271,6 +277,13 @@ class RandomActionTester:
             print(f"總測試次數: {num_tests}")
             print(f"正確預測: {correct_predictions}")
             print(f"準確率: {accuracy:.4f} ({accuracy*100:.2f}%)")
+            
+            if accuracy >= 0.8:
+                print("🌟 這批隨機樣本表現優秀!")
+            elif accuracy >= 0.6:
+                print("👍 這批隨機樣本表現良好!")
+            else:
+                print("📈 這批隨機樣本還有改進空間")
         
         print("=" * 70)
 
@@ -282,8 +295,12 @@ def main():
         tester = RandomActionTester()
         
         # 可以調整這些參數
-        num_tests = int(input("請輸入測試次數 (預設: 5): ") or "5")
-        sequence_length = int(input("請輸入序列長度 (預設: 20): ") or "20")
+        print("請輸入測試參數（直接按Enter使用預設值）:")
+        num_tests_input = input("測試次數 (預設: 5): ").strip()
+        num_tests = int(num_tests_input) if num_tests_input else 5
+        
+        sequence_length_input = input("序列長度 (預設: 20): ").strip()
+        sequence_length = int(sequence_length_input) if sequence_length_input else 20
         
         print(f"\n開始進行 {num_tests} 次隨機測試...")
         tester.run_random_test(num_tests=num_tests, sequence_length=sequence_length)

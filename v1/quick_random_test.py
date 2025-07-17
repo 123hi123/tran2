@@ -1,5 +1,5 @@
 """
-快速隨機測試
+快速隨機測試 - 基於真實測試腳本邏輯
 直接運行，隨機選擇5個動作測試模型預測能力
 """
 
@@ -52,10 +52,90 @@ class SignLanguageGRU(nn.Module):
         
         return out
 
+def preprocess_test_data(data):
+    """預處理測試數據，與測試腳本保持一致"""
+    total_missing = data.isnull().sum().sum()
+    if total_missing > 0:
+        print(f"⚠️  測試數據發現 {total_missing} 個缺失值，進行處理...")
+        
+        # 嘗試使用改進的處理器
+        try:
+            import sys
+            import os
+            sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+            from improved_missing_handler import ImprovedMissingValueProcessor
+            
+            processor = ImprovedMissingValueProcessor()
+            processor.calculate_neutral_positions(data)
+            data_processed = processor.smart_interpolation(data)
+            
+            # 將處理結果更新回原數據
+            data.update(data_processed)
+            print("✅ 智能缺失值處理完成")
+            
+        except ImportError:
+            print("⚠️  使用基礎缺失值處理...")
+            # 基礎處理：填充 0
+            data.fillna(0, inplace=True)
+    else:
+        print("✅ 測試數據沒有缺失值")
+
+def prepare_all_test_sequences(data, sequence_length=20):
+    """準備所有測試序列 - 與測試腳本邏輯完全相同"""
+    # 特徵欄位（排除標籤相關欄位和frame，與訓練時保持一致）
+    feature_cols = [col for col in data.columns 
+                   if col not in ['sign_language', 'sign_language_encoded', 'frame', 'source_video']]
+    
+    print(f"測試特徵維度: {len(feature_cols)} (排除: sign_language, sign_language_encoded, frame, source_video)")
+    
+    # 按類別分組創建序列
+    sequences = []
+    labels = []
+    class_names = []
+    sequence_info = []
+    
+    # 按sign_language分組
+    for sign_language in data['sign_language'].unique():
+        class_data = data[data['sign_language'] == sign_language]
+        
+        # 如果資料長度超過sequence_length，創建滑動窗口序列
+        if len(class_data) >= sequence_length:
+            for i in range(len(class_data) - sequence_length + 1):
+                seq = class_data.iloc[i:i+sequence_length][feature_cols].values
+                sequences.append(seq)
+                labels.append(class_data.iloc[i]['sign_language_encoded'])
+                class_names.append(sign_language)
+                # 添加序列來源信息
+                start_frame = i + 1
+                end_frame = i + sequence_length
+                sequence_info.append(f"{sign_language}_seq_{start_frame}-{end_frame}")
+        else:
+            # 如果資料不足，進行填充
+            seq_data = class_data[feature_cols].values
+            if len(seq_data) < sequence_length:
+                # 重複最後一幀來填充
+                padding_needed = sequence_length - len(seq_data)
+                last_frame = seq_data[-1:] if len(seq_data) > 0 else np.zeros((1, len(feature_cols)))
+                padding = np.repeat(last_frame, padding_needed, axis=0)
+                seq_data = np.vstack([seq_data, padding])
+            
+            sequences.append(seq_data)
+            labels.append(class_data.iloc[0]['sign_language_encoded'])
+            class_names.append(sign_language)
+            sequence_info.append(f"{sign_language}_padded")
+    
+    sequences = np.array(sequences, dtype=np.float32)
+    labels = np.array(labels, dtype=np.int64)
+    
+    print(f"測試序列形狀: {sequences.shape}")
+    print(f"測試標籤形狀: {labels.shape}")
+    
+    return sequences, labels, class_names, sequence_info
+
 def load_model_and_data():
     """載入模型和數據"""
-    data_folder = "v1/processed_data"
-    model_folder = "v1/models"
+    data_folder = "processed_data"
+    model_folder = "models"
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
     print(f"🔧 使用設備: {device}")
@@ -89,70 +169,18 @@ def load_model_and_data():
     
     # 載入測試數據
     test_path = os.path.join(data_folder, "test_dataset.csv")
+    if not os.path.exists(test_path):
+        raise FileNotFoundError(f"找不到測試資料集: {test_path}")
+    
     test_data = pd.read_csv(test_path)
+    
+    # 預處理測試數據
+    preprocess_test_data(test_data)
     
     print(f"✅ 模型載入成功，類別: {list(label_encoder.classes_)}")
     print(f"📊 測試數據: {test_data.shape}")
     
     return model, label_encoder, test_data, device
-
-def get_random_sequence(test_data, label_encoder, sequence_length=20):
-    """獲取隨機序列"""
-    # 隨機選擇類別
-    available_classes = test_data['sign_language'].unique()
-    random_class = random.choice(available_classes)
-    
-    # 獲取該類別數據
-    class_data = test_data[test_data['sign_language'] == random_class].copy()
-    
-    # 隨機選擇視頻
-    videos = class_data['source_video'].unique()
-    random_video = random.choice(videos)
-    
-    # 獲取視頻數據
-    video_data = class_data[class_data['source_video'] == random_video].copy()
-    video_data = video_data.sort_values('frame')
-    
-    if len(video_data) < sequence_length:
-        return get_random_sequence(test_data, label_encoder, sequence_length)
-    
-    # 特徵欄位
-    pose_columns = [f'pose_{i}' for i in range(36)]
-    left_hand_columns = [f'left_hand_{i}' for i in range(63)]
-    right_hand_columns = [f'right_hand_{i}' for i in range(63)]
-    feature_columns = pose_columns + left_hand_columns + right_hand_columns
-    available_features = [col for col in feature_columns if col in video_data.columns]
-    
-    # 隨機選擇序列位置
-    max_start = len(video_data) - sequence_length
-    random_start = random.randint(0, max_start)
-    random_end = random_start + sequence_length
-    
-    # 提取序列
-    sequence_data = video_data.iloc[random_start:random_end]
-    features = sequence_data[available_features].values
-    
-    # 處理缺失值
-    if np.isnan(features).any():
-        # 簡單線性插值
-        for i in range(features.shape[1]):
-            col_data = features[:, i]
-            if np.isnan(col_data).any():
-                # 前向填充然後後向填充
-                mask = ~np.isnan(col_data)
-                if mask.any():
-                    features[:, i] = np.interp(
-                        np.arange(len(col_data)),
-                        np.arange(len(col_data))[mask],
-                        col_data[mask]
-                    )
-                else:
-                    features[:, i] = 0  # 如果全是NaN，填充為0
-    
-    true_label = label_encoder.transform([random_class])[0]
-    sequence_info = f"{random_video}[{random_start+1}:{random_end}]"
-    
-    return features, true_label, random_class, sequence_info
 
 def predict_sequence(model, sequence, device):
     """預測序列"""
@@ -175,6 +203,13 @@ def main():
         # 載入模型和數據
         model, label_encoder, test_data, device = load_model_and_data()
         
+        # 準備所有測試序列（使用與測試腳本相同的邏輯）
+        X_test, y_test, class_names, sequence_info = prepare_all_test_sequences(test_data)
+        
+        if len(X_test) == 0:
+            print("❌ 沒有可用的測試序列")
+            return
+        
         # 進行5次隨機測試
         num_tests = 5
         correct_predictions = 0
@@ -183,10 +218,15 @@ def main():
             print(f"\n🎲 第 {i+1} 次隨機測試")
             print("-" * 40)
             
-            # 獲取隨機序列
-            sequence, true_label, true_class, sequence_info = get_random_sequence(
-                test_data, label_encoder
-            )
+            # 隨機選擇一個序列
+            random_idx = random.randint(0, len(X_test) - 1)
+            sequence = X_test[random_idx]
+            true_label = y_test[random_idx]
+            true_class = label_encoder.classes_[true_label]
+            seq_info = sequence_info[random_idx]
+            
+            print(f"📍 序列編號: {random_idx}")
+            print(f"📍 序列來源: {seq_info}")
             
             # 預測
             predicted_label, confidence, all_probs = predict_sequence(model, sequence, device)
@@ -198,7 +238,6 @@ def main():
                 correct_predictions += 1
             
             # 顯示結果
-            print(f"📍 序列來源: {sequence_info}")
             print(f"🎯 實際動作: {true_class}")
             print(f"🤖 預測動作: {predicted_class}")
             print(f"📊 預測信心: {confidence:.4f} ({confidence*100:.1f}%)")
@@ -224,11 +263,11 @@ def main():
         print(f"預測準確率: {accuracy:.3f} ({accuracy*100:.1f}%)")
         
         if accuracy >= 0.8:
-            print("🌟 模型表現優秀!")
+            print("🌟 這批隨機樣本表現優秀!")
         elif accuracy >= 0.6:
-            print("👍 模型表現良好!")
+            print("👍 這批隨機樣本表現良好!")
         else:
-            print("📈 模型還有改進空間")
+            print("📈 這批隨機樣本還有改進空間")
             
     except Exception as e:
         print(f"❌ 測試過程發生錯誤: {e}")
