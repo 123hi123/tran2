@@ -162,14 +162,47 @@ class SignLanguageDataProcessor:
         return final_train, final_test
     
     def preprocess_features(self, data):
-        """預處理特徵資料"""
-        # 確保所有特徵欄位都存在
+        """改進的特徵預處理，智能處理缺失值"""
+        print("\n🔧 開始特徵預處理...")
         processed_data = data.copy()
         
-        # 處理缺失值
-        for col in self.feature_columns:
-            if col in processed_data.columns:
-                processed_data[col] = processed_data[col].fillna(0)
+        # 檢查是否有缺失值
+        total_missing = processed_data.isnull().sum().sum()
+        if total_missing > 0:
+            print(f"發現 {total_missing} 個缺失值，啟動智能處理...")
+            
+            # 使用改進的缺失值處理器
+            try:
+                import sys
+                import os
+                sys.path.append(os.path.dirname(os.path.dirname(__file__)))  # 添加父目錄到路徑
+                from improved_missing_handler import ImprovedMissingValueProcessor
+                
+                processor = ImprovedMissingValueProcessor()
+                
+                # 分析缺失模式
+                analysis = processor.analyze_missing_patterns(processed_data)
+                
+                # 計算中性位置
+                processor.calculate_neutral_positions(processed_data)
+                
+                # 智能插值
+                processed_data = processor.smart_interpolation(processed_data)
+                
+                print("✅ 智能缺失值處理完成")
+                
+            except ImportError:
+                print("⚠️  無法載入改進的處理器，使用基礎方法...")
+                # 回退到基礎方法
+                for col in self.feature_columns:
+                    if col in processed_data.columns:
+                        processed_data[col] = processed_data[col].fillna(0)
+        else:
+            print("✅ 沒有發現缺失值")
+        
+        # 最終檢查
+        final_missing = processed_data.isnull().sum().sum()
+        print(f"最終缺失值: {final_missing}")
         
         return processed_data
     

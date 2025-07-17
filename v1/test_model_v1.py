@@ -122,13 +122,46 @@ class SignLanguageTester:
         if len(test_data) == 0:
             raise ValueError("測試資料集為空")
         
+        # 處理缺失值（與訓練時保持一致）
+        self._preprocess_test_data(test_data)
+        
         return test_data
+    
+    def _preprocess_test_data(self, data):
+        """預處理測試數據，確保與訓練時一致"""
+        total_missing = data.isnull().sum().sum()
+        if total_missing > 0:
+            print(f"⚠️  測試數據發現 {total_missing} 個缺失值，進行處理...")
+            
+            # 嘗試使用改進的處理器
+            try:
+                import sys
+                import os
+                sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+                from improved_missing_handler import ImprovedMissingValueProcessor
+                
+                processor = ImprovedMissingValueProcessor()
+                processor.calculate_neutral_positions(data)
+                data_processed = processor.smart_interpolation(data)
+                
+                # 將處理結果更新回原數據
+                data.update(data_processed)
+                print("✅ 智能缺失值處理完成")
+                
+            except ImportError:
+                print("⚠️  使用基礎缺失值處理...")
+                # 基礎處理：填充 0
+                data.fillna(0, inplace=True)
+        else:
+            print("✅ 測試數據沒有缺失值")
     
     def prepare_test_sequences(self, data, sequence_length=20):
         """準備測試序列資料"""
-        # 特徵欄位（排除標籤相關欄位）
+        # 特徵欄位（排除標籤相關欄位和frame，與訓練時保持一致）
         feature_cols = [col for col in data.columns 
-                       if col not in ['sign_language', 'sign_language_encoded']]
+                       if col not in ['sign_language', 'sign_language_encoded', 'frame', 'source_video']]
+        
+        print(f"測試特徵維度: {len(feature_cols)} (排除: sign_language, sign_language_encoded, frame, source_video)")
         
         # 按類別分組創建序列
         sequences = []
